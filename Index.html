@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestión de Tareas Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .task-enter { opacity: 0; transform: translateY(10px); }
+    .task-enter-active { opacity: 1; transform: translateY(0); transition: all 0.3s ease; }
+    .syncing { opacity: 0.6; }
+    .nested { margin-left: 1.5rem; border-left: 2px solid #e5e7eb; padding-left: 0.5rem; }
+    [v-cloak] { display: none; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans text-gray-900">
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
+    <div class="flex flex-col items-center">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <p class="mt-4 text-gray-600 font-medium">Cargando aplicación...</p>
+    </div>
+  </div>
+
+  <div id="app" class="max-w-3xl mx-auto px-4 py-8 opacity-0 transition-opacity duration-500">
+    <!-- Header -->
+    <header class="mb-8 flex justify-between items-center">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-800">Mis Tareas</h1>
+        <p id="user-display" class="text-sm text-gray-500"></p>
+      </div>
+      <div id="sync-status" class="text-xs font-medium text-gray-400 flex items-center">
+        <span class="w-2 h-2 rounded-full bg-green-400 mr-2"></span>
+        Sincronizado
+      </div>
+    </header>
+
+    <!-- New Task Input Area -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all">
+      <div class="flex items-start gap-3">
+        <div class="pt-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="12 4v16m8-8H4"></path></svg>
+        </div>
+        <div class="flex-grow">
+          <input type="text" id="new-task-input"
+            placeholder="Añadir tarea... (ej: Revisar informe p1 mañana)"
+            class="w-full border-none focus:ring-0 text-lg placeholder-gray-400"
+            autocomplete="off">
+
+          <div id="nlp-chips" class="flex flex-wrap gap-2 mt-2">
+            <!-- NLP chips will appear here -->
+          </div>
+        </div>
+      </div>
+      <div class="mt-3 flex justify-between items-center border-t border-gray-50 pt-3">
+        <div class="flex gap-4">
+          <button id="toggle-nlp" class="text-xs font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1">
+            <span id="nlp-status-icon" class="w-2 h-2 rounded-full bg-blue-600"></span>
+            NLP Activo
+          </button>
+        </div>
+        <button id="add-task-btn" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50">
+          Añadir tarea
+        </button>
+      </div>
+    </div>
+
+    <!-- Filters/Tabs -->
+    <div id="filter-tabs" class="flex gap-4 mb-6 text-sm font-medium border-b border-gray-200">
+      <button data-filter="Pendiente" class="filter-btn pb-2 border-b-2 border-blue-600 text-blue-600">Pendientes</button>
+      <button data-filter="Completadas" class="filter-btn pb-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700">Completadas</button>
+    </div>
+
+    <!-- Task List Container -->
+    <div id="task-list" class="space-y-2">
+      <!-- Tasks will be rendered here -->
+    </div>
+
+    <!-- Empty State -->
+    <div id="empty-state" class="hidden py-20 text-center">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 text-gray-400 mb-4">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+      </div>
+      <h3 class="text-lg font-medium text-gray-900">No hay tareas</h3>
+      <p class="text-gray-500">Todo listo por ahora.</p>
+    </div>
+  </div>
+
+  <script>
+    // --- APP STATE & CONFIG ---
+    const state = {
+      userEmail: '',
+      tasksById: {},
+      childrenByParentId: {},
+      rootTasks: [],
+      nlpEnabled: true,
+      pendingMutations: 0,
+      activeFilter: 'Pendiente',
+      collapsed: {}
+    };
+
+    // --- DOM ELEMENTS ---
+    const elements = {
+      app: document.getElementById('app'),
+      loadingOverlay: document.getElementById('loading-overlay'),
+      userDisplay: document.getElementById('user-display'),
+      syncStatus: document.getElementById('sync-status'),
+      taskInput: document.getElementById('new-task-input'),
+      addTaskBtn: document.getElementById('add-task-btn'),
+      taskList: document.getElementById('task-list'),
+      emptyState: document.getElementById('empty-state'),
+      nlpChips: document.getElementById('nlp-chips'),
+      toggleNlp: document.getElementById('toggle-nlp')
+    };
+
+    // Initial Bootstrap
+    window.addEventListener('load', () => {
+      google.script.run
+        .withSuccessHandler(data => {
+          state.userEmail = data.userEmail;
+          elements.userDisplay.textContent = data.userEmail;
+          initTasks(data.tasks);
+
+          elements.loadingOverlay.classList.add('hidden');
+          elements.app.classList.remove('opacity-0');
+          renderApp();
+        })
+        .withFailureHandler(err => {
+          alert('Error al cargar la aplicación: ' + err);
+        })
+        .bootstrapApp();
+    });
+
+    function initTasks(tasks) {
+      state.tasksById = {};
+      state.childrenByParentId = {};
+      state.rootTasks = [];
+
+      tasks.forEach(task => {
+        state.tasksById[task.ID] = task;
+        if (task.ID_Padre) {
+          if (!state.childrenByParentId[task.ID_Padre]) state.childrenByParentId[task.ID_Padre] = [];
+          state.childrenByParentId[task.ID_Padre].push(task.ID);
+        } else {
+          state.rootTasks.push(task.ID);
+        }
+      });
+    }
+
+    // --- NLP ENGINE ---
+    const NLP_TOKENS = {
+      priorities: {
+        'p1': 'Alta',
+        'p2': 'Media',
+        'p3': 'Baja'
+      },
+      days: {
+        'hoy': 0,
+        'mañana': 1,
+        'lunes': 1,
+        'martes': 2,
+        'miercoles': 3,
+        'miércoles': 3,
+        'jueves': 4,
+        'viernes': 5,
+        'sabado': 6,
+        'sábado': 6,
+        'domingo': 0
+      }
+    };
+
+    function parseNLP(text) {
+      if (!state.nlpEnabled) return { cleanText: text, priority: 'Baja', date: null, tokens: [] };
+
+      const tokens = text.split(/\s+/);
+      let cleanTokens = [];
+      let foundPriority = 'Baja';
+      let foundDate = null;
+      let activeTokens = [];
+
+      tokens.forEach(token => {
+        const lowerToken = token.toLowerCase();
+
+        if (NLP_TOKENS.priorities[lowerToken]) {
+          foundPriority = NLP_TOKENS.priorities[lowerToken];
+          activeTokens.push({ type: 'priority', value: foundPriority, original: token });
+        } else if (NLP_TOKENS.days.hasOwnProperty(lowerToken)) {
+          foundDate = calculateDate(lowerToken);
+          activeTokens.push({ type: 'date', value: foundDate, original: token });
+        } else {
+          cleanTokens.push(token);
+        }
+      });
+
+      return {
+        cleanText: cleanTokens.join(' '),
+        priority: foundPriority,
+        date: foundDate,
+        tokens: activeTokens
+      };
+    }
+
+    function calculateDate(token) {
+      const now = new Date();
+      const today = now.getDay();
+      let targetDate = new Date();
+
+      if (token === 'hoy') {
+        // use today
+      } else if (token === 'mañana') {
+        targetDate.setDate(now.getDate() + 1);
+      } else {
+        const targetDay = NLP_TOKENS.days[token];
+        let diff = targetDay - today;
+        if (diff <= 0) diff += 7;
+        targetDate.setDate(now.getDate() + diff);
+      }
+      return targetDate.toISOString().split('T')[0];
+    }
+
+    // --- ACTIONS ---
+    function addTask() {
+      const rawText = elements.taskInput.value.trim();
+      if (!rawText) return;
+      createTaskWithText(rawText, null);
+      elements.taskInput.value = '';
+      updateNlpChips('');
+    }
+
+    function createTaskWithText(rawText, parentId) {
+      const nlpResult = parseNLP(rawText);
+      const tempId = 'temp-' + Date.now();
+
+      const newTask = {
+        ID: tempId,
+        Tarea: nlpResult.cleanText || rawText,
+        Prioridad: nlpResult.priority,
+        Fecha_Ejecucion: nlpResult.date,
+        Estado: 'Pendiente',
+        ID_Padre: parentId,
+        syncing: true
+      };
+
+      // Optimistic Update
+      state.tasksById[tempId] = newTask;
+      if (parentId) {
+        if (!state.childrenByParentId[parentId]) state.childrenByParentId[parentId] = [];
+        state.childrenByParentId[parentId].unshift(tempId);
+        state.collapsed[parentId] = false; // Expand parent
+      } else {
+        state.rootTasks.unshift(tempId);
+      }
+      renderApp();
+
+      // Backend Call
+      state.pendingMutations++;
+      updateSyncStatus();
+
+      google.script.run
+        .withSuccessHandler(response => {
+          state.pendingMutations--;
+          updateSyncStatus();
+
+          if (response.success) {
+            // Reemplazar tempId con real ID
+            const realTask = response.task;
+            delete state.tasksById[tempId];
+            state.tasksById[realTask.ID] = realTask;
+
+            if (parentId) {
+              const idx = state.childrenByParentId[parentId].indexOf(tempId);
+              if (idx !== -1) state.childrenByParentId[parentId][idx] = realTask.ID;
+            } else {
+              const idx = state.rootTasks.indexOf(tempId);
+              if (idx !== -1) state.rootTasks[idx] = realTask.ID;
+            }
+
+            renderApp();
+          } else {
+            handleMutationError(tempId, 'create');
+          }
+        })
+        .withFailureHandler(() => {
+          state.pendingMutations--;
+          updateSyncStatus();
+          handleMutationError(tempId, 'create');
+        })
+        .createTask(newTask);
+    }
+
+    function toggleTaskStatus(taskId) {
+      const task = state.tasksById[taskId];
+      const newStatus = task.Estado === 'Completada' ? 'Pendiente' : 'Completada';
+
+      // Optimistic
+      task.Estado = newStatus;
+      task.syncing = true;
+      renderApp();
+
+      state.pendingMutations++;
+      updateSyncStatus();
+
+      google.script.run
+        .withSuccessHandler(res => {
+          state.pendingMutations--;
+          updateSyncStatus();
+          task.syncing = false;
+          if (!res.success) {
+            // Revert
+            task.Estado = newStatus === 'Completada' ? 'Pendiente' : 'Completada';
+            alert('Error al actualizar: ' + res.error);
+          }
+          renderApp();
+        })
+        .setTaskStatus(taskId, newStatus);
+    }
+
+    function updateSyncStatus() {
+      if (state.pendingMutations > 0) {
+        elements.syncStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-yellow-400 mr-2 animate-pulse"></span> Sincronizando...`;
+      } else {
+        elements.syncStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-400 mr-2"></span> Sincronizado`;
+      }
+    }
+
+    function handleMutationError(id, type) {
+      const task = state.tasksById[id];
+      if (task) {
+        task.error = true;
+        task.syncing = false;
+        renderApp();
+      }
+      alert('Error al sincronizar los cambios. Por favor, intenta de nuevo.');
+    }
+
+    // --- RENDERING ---
+    function renderApp() {
+      const filteredRootIds = state.rootTasks.filter(id => {
+        const task = state.tasksById[id];
+        return state.activeFilter === 'Completadas' ? task.Estado === 'Completada' : task.Estado !== 'Completada';
+      });
+
+      if (filteredRootIds.length === 0) {
+        elements.taskList.innerHTML = '';
+        elements.emptyState.classList.remove('hidden');
+      } else {
+        elements.emptyState.classList.add('hidden');
+        elements.taskList.innerHTML = '';
+        filteredRootIds.forEach(id => {
+          elements.taskList.appendChild(createTaskElement(id, 0));
+        });
+      }
+    }
+
+    function toggleCollapse(id) {
+      state.collapsed[id] = !state.collapsed[id];
+      renderApp();
+    }
+
+    function createTaskElement(id, depth) {
+      const task = state.tasksById[id];
+      const childIds = (state.childrenByParentId[id] || []).filter(cid => {
+        const ctask = state.tasksById[cid];
+        return state.activeFilter === 'Completadas' ? ctask.Estado === 'Completada' : ctask.Estado !== 'Completada';
+      });
+      const isCollapsed = state.collapsed[id] || (depth >= 2 && state.collapsed[id] === undefined);
+
+      const container = document.createElement('div');
+      container.className = `task-item ${task.syncing ? 'syncing' : ''} ${depth > 0 ? 'nested' : ''}`;
+
+      const priorityColors = {
+        'Alta': 'border-l-red-500',
+        'Media': 'border-l-yellow-500',
+        'Baja': 'border-l-blue-500'
+      };
+
+      const hasChildren = childIds.length > 0;
+
+      container.innerHTML = `
+        <div class="group bg-white p-3 rounded-lg border border-gray-100 border-l-4 ${priorityColors[task.Prioridad] || 'border-l-gray-300'} shadow-sm flex items-center gap-3 transition-all hover:shadow-md">
+          <div class="flex items-center gap-1">
+            ${hasChildren ? `
+              <button onclick="toggleCollapse('${id}')" class="text-gray-400 hover:text-gray-600 transition-transform ${isCollapsed ? '' : 'rotate-90'}">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+              </button>
+            ` : '<div class="w-4"></div>'}
+            <button onclick="toggleTaskStatus('${id}')" class="flex-shrink-0 w-5 h-5 rounded-full border-2 ${task.Estado === 'Completada' ? 'bg-green-500 border-green-500' : 'border-gray-300'} flex items-center justify-center transition-colors">
+              ${task.Estado === 'Completada' ? '<svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"></path></svg>' : ''}
+            </button>
+          </div>
+
+          <div class="flex-grow min-w-0">
+            <h4 class="text-sm font-medium ${task.Estado === 'Completada' ? 'line-through text-gray-400' : 'text-gray-800'} truncate">${task.Tarea}</h4>
+            <div class="flex gap-2 mt-1">
+              ${task.Fecha_Ejecucion ? `<span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider">${formatDate(task.Fecha_Ejecucion)}</span>` : ''}
+              <span class="text-[10px] bg-gray-50 text-gray-400 px-1.5 py-0.5 rounded uppercase tracking-wider">${task.Prioridad}</span>
+            </div>
+          </div>
+
+          <div class="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
+            <button onclick="promptSubtask('${id}')" class="p-1 hover:bg-gray-100 rounded text-gray-400" title="Añadir subtarea"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg></button>
+            <button onclick="editTask('${id}')" class="p-1 hover:bg-gray-100 rounded text-gray-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>
+          </div>
+        </div>
+      `;
+
+      // Handle children recursively
+      if (hasChildren && !isCollapsed) {
+        const childrenContainer = document.createElement('div');
+        childrenContainer.className = 'mt-2 space-y-2';
+        childIds.forEach(childId => {
+          childrenContainer.appendChild(createTaskElement(childId, depth + 1));
+        });
+        container.appendChild(childrenContainer);
+      }
+
+      return container;
+    }
+
+    function promptSubtask(parentId) {
+      const taskName = prompt('Nombre de la subtarea:');
+      if (taskName) {
+        createTaskWithText(taskName, parentId);
+      }
+    }
+
+    function editTask(id) {
+      const task = state.tasksById[id];
+      const newName = prompt('Editar tarea:', task.Tarea);
+      if (newName && newName !== task.Tarea) {
+        task.Tarea = newName;
+        task.syncing = true;
+        renderApp();
+
+        state.pendingMutations++;
+        updateSyncStatus();
+
+        google.script.run
+          .withSuccessHandler(res => {
+            state.pendingMutations--;
+            updateSyncStatus();
+            task.syncing = false;
+            if (!res.success) alert('Error al actualizar: ' + res.error);
+            renderApp();
+          })
+          .updateTask({ ID: id, Tarea: newName });
+      }
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+    }
+
+    // --- EVENT LISTENERS ---
+    elements.taskInput.addEventListener('input', (e) => {
+      updateNlpChips(e.target.value);
+    });
+
+    elements.taskInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') addTask();
+    });
+
+    elements.addTaskBtn.addEventListener('click', addTask);
+
+    elements.toggleNlp.addEventListener('click', () => {
+      state.nlpEnabled = !state.nlpEnabled;
+      document.getElementById('nlp-status-icon').className = `w-2 h-2 rounded-full ${state.nlpEnabled ? 'bg-blue-600' : 'bg-gray-400'}`;
+      elements.toggleNlp.innerHTML = `<span id="nlp-status-icon" class="w-2 h-2 rounded-full ${state.nlpEnabled ? 'bg-blue-600' : 'bg-gray-400'}"></span> NLP ${state.nlpEnabled ? 'Activo' : 'Inactivo'}`;
+      updateNlpChips(elements.taskInput.value);
+    });
+
+    function updateNlpChips(text) {
+      if (!state.nlpEnabled || !text) {
+        elements.nlpChips.innerHTML = '';
+        return;
+      }
+      const nlp = parseNLP(text);
+      elements.nlpChips.innerHTML = '';
+      nlp.tokens.forEach(token => {
+        const chip = document.createElement('span');
+        chip.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium';
+        chip.innerHTML = `${token.original} <button class="hover:text-blue-900 ml-1">&times;</button>`;
+        chip.querySelector('button').onclick = () => removeToken(token.original);
+        elements.nlpChips.appendChild(chip);
+      });
+    }
+
+    function removeToken(originalToken) {
+      const currentVal = elements.taskInput.value;
+      const regex = new RegExp('\\b' + originalToken + '\\b', 'i');
+      elements.taskInput.value = currentVal.replace(regex, '').replace(/\s+/g, ' ').trim();
+      updateNlpChips(elements.taskInput.value);
+    }
+
+    // Filter interaction
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.onclick = () => {
+        state.activeFilter = btn.dataset.filter;
+        document.querySelectorAll('.filter-btn').forEach(b => {
+          b.classList.remove('border-blue-600', 'text-blue-600');
+          b.classList.add('border-transparent', 'text-gray-500');
+        });
+        btn.classList.add('border-blue-600', 'text-blue-600');
+        btn.classList.remove('border-transparent', 'text-gray-500');
+        renderApp();
+      };
+    });
+  </script>
+</body>
+</html>
