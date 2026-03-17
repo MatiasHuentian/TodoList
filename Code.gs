@@ -3,16 +3,16 @@
  * Backend: Google Apps Script
  */
 
-const SHEET_NAME = "Tareas";
+const SHEET_NAME = 'Tareas';
 
 /**
  * Renderiza la interfaz principal.
  */
 function doGet() {
-  return HtmlService.createTemplateFromFile("Index")
+  return HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle("Gestión de Tareas Pro")
-    .addMetaTag("viewport", "width=device-width, initial-scale=1")
+    .setTitle('Gestión de Tareas Pro')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -27,8 +27,8 @@ function bootstrapApp() {
     userEmail: userEmail,
     tasks: tasks,
     config: {
-      version: "1.0.0",
-    },
+      version: '1.0.0'
+    }
   };
 }
 
@@ -43,22 +43,19 @@ function getTasksForUser(email) {
   const headers = data[0];
   const rows = data.slice(1);
 
-  const emailIdx = headers.indexOf("OwnerEmail");
+  const emailIdx = headers.indexOf('OwnerEmail');
 
   return rows
-    .filter((row) => row[emailIdx] === email)
-    .map((row) => {
+    .filter(row => row[emailIdx] === email)
+    .map(row => {
       const task = {};
       headers.forEach((header, i) => {
         task[header] = row[i];
       });
       // Convertir fechas a strings ISO para el frontend
-      if (task.Fecha_Ejecucion instanceof Date)
-        task.Fecha_Ejecucion = task.Fecha_Ejecucion.toISOString();
-      if (task.CreatedAt instanceof Date)
-        task.CreatedAt = task.CreatedAt.toISOString();
-      if (task.UpdatedAt instanceof Date)
-        task.UpdatedAt = task.UpdatedAt.toISOString();
+      if (task.Fecha_Ejecucion instanceof Date) task.Fecha_Ejecucion = task.Fecha_Ejecucion.toISOString();
+      if (task.CreatedAt instanceof Date) task.CreatedAt = task.CreatedAt.toISOString();
+      if (task.UpdatedAt instanceof Date) task.UpdatedAt = task.UpdatedAt.toISOString();
       return task;
     });
 }
@@ -78,16 +75,16 @@ function createTask(payload) {
     const newTaskRow = [
       payload.ID || Utilities.getUuid(),
       userEmail,
-      payload.ID_Padre || "",
-      payload.Tarea || "",
-      payload.Descripcion || "",
-      payload.Fecha_Ejecucion ? new Date(payload.Fecha_Ejecucion) : "",
-      payload.Prioridad || "Baja",
-      payload.Estado || "Pendiente",
-      payload.Categoria || "",
+      payload.ID_Padre || '',
+      payload.Tarea || '',
+      payload.Descripcion || '',
+      payload.Fecha_Ejecucion ? new Date(payload.Fecha_Ejecucion) : '',
+      payload.Prioridad || 'Baja',
+      payload.Estado || 'Pendiente',
+      payload.Categoria || '',
       payload.Interpretar_Comandos === true,
       now,
-      now,
+      now
     ];
 
     sheet.appendRow(newTaskRow);
@@ -99,12 +96,9 @@ function createTask(payload) {
       task[header] = newTaskRow[i];
     });
 
-    if (task.Fecha_Ejecucion instanceof Date)
-      task.Fecha_Ejecucion = task.Fecha_Ejecucion.toISOString();
-    if (task.CreatedAt instanceof Date)
-      task.CreatedAt = task.CreatedAt.toISOString();
-    if (task.UpdatedAt instanceof Date)
-      task.UpdatedAt = task.UpdatedAt.toISOString();
+    if (task.Fecha_Ejecucion instanceof Date) task.Fecha_Ejecucion = task.Fecha_Ejecucion.toISOString();
+    if (task.CreatedAt instanceof Date) task.CreatedAt = task.CreatedAt.toISOString();
+    if (task.UpdatedAt instanceof Date) task.UpdatedAt = task.UpdatedAt.toISOString();
 
     return { success: true, task: task };
   } catch (e) {
@@ -125,8 +119,8 @@ function updateTask(payload) {
     const sheet = getOrCreateSheet();
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
-    const idIdx = headers.indexOf("ID");
-    const emailIdx = headers.indexOf("OwnerEmail");
+    const idIdx = headers.indexOf('ID');
+    const emailIdx = headers.indexOf('OwnerEmail');
     const userEmail = Session.getActiveUser().getEmail();
 
     let rowIndex = -1;
@@ -137,19 +131,19 @@ function updateTask(payload) {
       }
     }
 
-    if (rowIndex === -1) throw new Error("Tarea no encontrada o sin permisos.");
+    if (rowIndex === -1) throw new Error('Tarea no encontrada o sin permisos.');
 
     const now = new Date();
     const rowUpdate = [];
     headers.forEach((header, i) => {
       if (payload.hasOwnProperty(header)) {
         let value = payload[header];
-        if (header === "Fecha_Ejecucion" && value) value = new Date(value);
+        if (header === 'Fecha_Ejecucion' && value) value = new Date(value);
         rowUpdate.push(value);
-      } else if (header === "UpdatedAt") {
+      } else if (header === 'UpdatedAt') {
         rowUpdate.push(now);
       } else {
-        rowUpdate.push(data[rowIndex - 1][i]);
+        rowUpdate.push(data[rowIndex-1][i]);
       }
     });
 
@@ -173,35 +167,19 @@ function setTaskStatus(taskId, status) {
 /**
  * Obtiene la hoja de tareas o la crea si no existe.
  */
-/**
- * Obtiene la hoja de tareas o la crea si no existe.
- */
 function getOrCreateSheet() {
-  // 1. REEMPLAZA EL ID DE ABAJO POR EL TUYO (el que está en la URL de tu Google Sheet)
-  const ID_DE_MI_HOJA = "1amRhl7k159bwYKqpO2-ONVpcpOZJi2kk0XJmFJybqN8";
-
-  // 2. Usamos openById en lugar de getActiveSpreadsheet
-  const ss = SpreadsheetApp.openById(ID_DE_MI_HOJA);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(SHEET_NAME);
 
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
     const headers = [
-      "ID",
-      "OwnerEmail",
-      "ID_Padre",
-      "Tarea",
-      "Descripcion",
-      "Fecha_Ejecucion",
-      "Prioridad",
-      "Estado",
-      "Categoria",
-      "Interpretar_Comandos",
-      "CreatedAt",
-      "UpdatedAt",
+      'ID', 'OwnerEmail', 'ID_Padre', 'Tarea', 'Descripcion',
+      'Fecha_Ejecucion', 'Prioridad', 'Estado', 'Categoria',
+      'Interpretar_Comandos', 'CreatedAt', 'UpdatedAt'
     ];
     sheet.appendRow(headers);
-    sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
     sheet.setFrozenRows(1);
   }
 
