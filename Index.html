@@ -8,9 +8,42 @@
   <style>
     .task-enter { opacity: 0; transform: translateY(10px); }
     .task-enter-active { opacity: 1; transform: translateY(0); transition: all 0.3s ease; }
-    .syncing { opacity: 0.6; }
+
+    /* Reducimos la transparencia al sincronizar para mejorar la legibilidad del texto durante el proceso (de 0.6 a 0.85) */
+    .syncing { opacity: 0.85; }
+
     .nested { margin-left: 1.5rem; border-left: 2px solid #e5e7eb; padding-left: 0.5rem; }
     [v-cloak] { display: none; }
+
+    /* --- MEJORAS DE CONTRASTE (WCAG AA) --- */
+
+    /* Aumentamos el contraste del borde de las cards (gray-100 -> gray-400) y reforzamos la sombra
+       para que se distingan claramente del fondo general (#f9fafb) */
+    .task-item > div {
+      border-color: #9ca3af !important; /* gray-400 */
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important; /* shadow-lg */
+    }
+
+    /* Texto de tareas activas: Reforzamos a gray-900 (#111827) para máxima claridad y contraste */
+    .task-item h4 {
+      color: #111827 !important;
+    }
+
+    /* Tareas completadas: Elevamos a gray-700 (#374151) para superar con creces el ratio 4.5:1 (WCAG AA)
+       manteniendo la distinción visual de "completada" pero siendo legible */
+    .task-item h4.text-gray-400 {
+      color: #374151 !important;
+    }
+
+    /* Chips de metadatos (Fecha): Subimos a gray-700 (#374151) sobre fondo gray-100 (ratio ~6.5:1) */
+    .task-item span.bg-gray-100.text-gray-500 {
+      color: #374151 !important;
+    }
+
+    /* Chips de metadatos (Prioridad): Subimos a gray-700 (#374151) sobre fondo gray-50 (ratio ~6.9:1) */
+    .task-item span.bg-gray-50.text-gray-400 {
+      color: #374151 !important;
+    }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen font-sans text-gray-900">
