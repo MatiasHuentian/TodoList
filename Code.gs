@@ -4,6 +4,27 @@
  */
 
 const SHEET_NAME = 'Tareas';
+const SPREADSHEET_ID_PROP = 'SPREADSHEET_ID';
+
+/**
+ * Obtiene el Spreadsheet objetivo.
+ * Prioriza Script Properties para despliegues standalone y usa active spreadsheet como fallback.
+ */
+function getSpreadsheet_() {
+  const spreadsheetId = PropertiesService.getScriptProperties().getProperty(SPREADSHEET_ID_PROP);
+  if (spreadsheetId) {
+    return SpreadsheetApp.openById(spreadsheetId);
+  }
+
+  const activeSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  if (activeSpreadsheet) {
+    return activeSpreadsheet;
+  }
+
+  throw new Error(
+    'No se encontro un Spreadsheet activo. Configura Script Property "SPREADSHEET_ID" con el ID de tu Google Sheet.'
+  );
+}
 
 /**
  * Renderiza la interfaz principal.
@@ -27,8 +48,8 @@ function bootstrapApp() {
     userEmail: userEmail,
     tasks: tasks,
     config: {
-      version: '1.0.0'
-    }
+      version: '1.0.0',
+    },
   };
 }
 
@@ -46,14 +67,15 @@ function getTasksForUser(email) {
   const emailIdx = headers.indexOf('OwnerEmail');
 
   return rows
-    .filter(row => row[emailIdx] === email)
-    .map(row => {
+    .filter((row) => row[emailIdx] === email)
+    .map((row) => {
       const task = {};
       headers.forEach((header, i) => {
         task[header] = row[i];
       });
       // Convertir fechas a strings ISO para el frontend
-      if (task.Fecha_Ejecucion instanceof Date) task.Fecha_Ejecucion = task.Fecha_Ejecucion.toISOString();
+      if (task.Fecha_Ejecucion instanceof Date)
+        task.Fecha_Ejecucion = task.Fecha_Ejecucion.toISOString();
       if (task.CreatedAt instanceof Date) task.CreatedAt = task.CreatedAt.toISOString();
       if (task.UpdatedAt instanceof Date) task.UpdatedAt = task.UpdatedAt.toISOString();
       return task;
@@ -84,7 +106,7 @@ function createTask(payload) {
       payload.Categoria || '',
       payload.Interpretar_Comandos === true,
       now,
-      now
+      now,
     ];
 
     sheet.appendRow(newTaskRow);
@@ -96,7 +118,8 @@ function createTask(payload) {
       task[header] = newTaskRow[i];
     });
 
-    if (task.Fecha_Ejecucion instanceof Date) task.Fecha_Ejecucion = task.Fecha_Ejecucion.toISOString();
+    if (task.Fecha_Ejecucion instanceof Date)
+      task.Fecha_Ejecucion = task.Fecha_Ejecucion.toISOString();
     if (task.CreatedAt instanceof Date) task.CreatedAt = task.CreatedAt.toISOString();
     if (task.UpdatedAt instanceof Date) task.UpdatedAt = task.UpdatedAt.toISOString();
 
@@ -143,7 +166,7 @@ function updateTask(payload) {
       } else if (header === 'UpdatedAt') {
         rowUpdate.push(now);
       } else {
-        rowUpdate.push(data[rowIndex-1][i]);
+        rowUpdate.push(data[rowIndex - 1][i]);
       }
     });
 
@@ -168,15 +191,24 @@ function setTaskStatus(taskId, status) {
  * Obtiene la hoja de tareas o la crea si no existe.
  */
 function getOrCreateSheet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getSpreadsheet_();
   let sheet = ss.getSheetByName(SHEET_NAME);
 
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
     const headers = [
-      'ID', 'OwnerEmail', 'ID_Padre', 'Tarea', 'Descripcion',
-      'Fecha_Ejecucion', 'Prioridad', 'Estado', 'Categoria',
-      'Interpretar_Comandos', 'CreatedAt', 'UpdatedAt'
+      'ID',
+      'OwnerEmail',
+      'ID_Padre',
+      'Tarea',
+      'Descripcion',
+      'Fecha_Ejecucion',
+      'Prioridad',
+      'Estado',
+      'Categoria',
+      'Interpretar_Comandos',
+      'CreatedAt',
+      'UpdatedAt',
     ];
     sheet.appendRow(headers);
     sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
