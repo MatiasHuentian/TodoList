@@ -1,0 +1,179 @@
+{
+  "folders": [
+    {
+      "name": "Tareas Pro",
+      "path": ".",
+    },
+  ],
+  "settings": {
+    // --- Editor general ---
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.wordWrap": "on",
+    "editor.minimap.enabled": false,
+    "editor.renderWhitespace": "boundary",
+
+    // --- Asociación de tipos de archivo ---
+    "files.associations": {
+      "*.gs": "javascript",
+      "appsscript.json": "json",
+    },
+
+    // --- Excluir archivos irrelevantes del explorador ---
+    "files.exclude": {
+      "**/.git": true,
+      "**/node_modules": true,
+      "**/.clasp.json": false,
+    },
+
+    // --- Tailwind CSS ---
+    "tailwindCSS.includeLanguages": {
+      "html": "html",
+    },
+    "tailwindCSS.experimental.classRegex": ["class=\"([^\"]*)", "className=\"([^\"]*)"],
+    "editor.quickSuggestions": {
+      "strings": "on",
+    },
+
+    // --- JavaScript / GAS ---
+    "javascript.validate.enable": true,
+    "javascript.suggest.autoImports": false,
+    "[javascript]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+    },
+
+    // --- HTML ---
+    "[html]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+    },
+
+    // --- JSON ---
+    "[json]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+    },
+
+    // --- Markdown ---
+    "[markdown]": {
+      "editor.defaultFormatter": "yzhang.markdown-all-in-one",
+      "editor.wordWrap": "on",
+      "editor.quickSuggestions": {
+        "other": "on",
+        "comments": "off",
+        "strings": "off",
+      },
+    },
+
+    // --- Git ---
+    "git.autofetch": true,
+    "git.confirmSync": false,
+    "git.enableSmartCommit": true,
+
+    // --- Terminal ---
+    "terminal.integrated.defaultProfile.windows": "Git Bash",
+    "terminal.integrated.cwd": "${workspaceFolder}",
+
+    // --- Prettier ---
+    "prettier.singleQuote": true,
+    "prettier.semi": true,
+    "prettier.printWidth": 100,
+    "prettier.trailingComma": "es5",
+  },
+  "extensions": {
+    "recommendations": [
+      // Formato y estilo
+      "esbenp.prettier-vscode",
+      "dbaeumer.vscode-eslint",
+
+      // HTML & CSS
+      "formulahendry.auto-rename-tag",
+      "formulahendry.auto-close-tag",
+      "bradlc.vscode-tailwindcss",
+      "ecmel.vscode-html-css",
+
+      // JavaScript / Google Apps Script
+      "logerfo.gas-helper",
+      "christian-kohler.path-intellisense",
+
+      // Markdown
+      "yzhang.markdown-all-in-one",
+      "bierner.markdown-preview-github-styles",
+      "davidanson.vscode-markdownlint",
+
+      // Git / GitHub
+      "github.vscode-pull-request-github",
+      "eamodio.gitlens",
+      "mhutchie.git-graph",
+
+      // Utilidades
+      "visualstudioexptteam.vscodeintellicode",
+      "streetsidesoftware.code-spell-checker",
+      "streetsidesoftware.code-spell-checker-spanish",
+    ],
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [],
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "clasp: Push a GAS",
+        "type": "shell",
+        "command": "clasp push",
+        "group": "build",
+        "presentation": {
+          "reveal": "always",
+          "panel": "shared",
+        },
+        "problemMatcher": [],
+      },
+      {
+        "label": "clasp: Pull desde GAS",
+        "type": "shell",
+        "command": "clasp pull",
+        "group": "build",
+        "presentation": {
+          "reveal": "always",
+          "panel": "shared",
+        },
+        "problemMatcher": [],
+      },
+      {
+        "label": "clasp: Ver deployments",
+        "type": "shell",
+        "command": "clasp deployments",
+        "group": "none",
+        "presentation": {
+          "reveal": "always",
+          "panel": "shared",
+        },
+        "problemMatcher": [],
+      },
+      {
+        "label": "clasp: Abrir en GAS Editor",
+        "type": "shell",
+        "command": "clasp open",
+        "group": "none",
+        "presentation": {
+          "reveal": "always",
+          "panel": "shared",
+        },
+        "problemMatcher": [],
+      },
+      {
+        "label": "git: Estado del repositorio",
+        "type": "shell",
+        "command": "git status",
+        "group": "none",
+        "presentation": {
+          "reveal": "always",
+          "panel": "shared",
+        },
+        "problemMatcher": [],
+      },
+    ],
+  },
+}
